@@ -5,6 +5,7 @@ library(DBI)
 library(zoo)
 library(tidytext)
 library(stopwords)
+library(collapse)
 
 
 incidences <- read_csv("COVID-19-Faelle_7-Tage-Inzidenz_Deutschland.csv")
@@ -34,6 +35,7 @@ tweets_db %>%
 noop <- function(x){x}
 
 filter_word <- "nase"
+
 
 all_data %>% 
   filter(lang == "de") %>% 
@@ -71,7 +73,7 @@ res_inc <- incidences %>%
   #mutate(roll_sum = rollmean(Faelle_neu, 7, fill = NA, align = "right")) %>%
   noop() 
   
-  res_inc %>% 
+res_inc %>% 
   ggplot() +
   aes(x = Meldedatum, y = `Faelle_7-Tage`, group = 1) + 
   geom_line() +
