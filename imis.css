@@ -1,0 +1,182 @@
+/*@import url('https://fonts.googleapis.com/css?family=Titillium+Web:200,200i,300,300i,400,400i,600,600i');
+@import url('https://fonts.googleapis.com/css?family=Open+Sans');
+*/
+@import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+@font-face{
+    font-family: "Myriad Pro";
+    src: url("static/Myriad Pro Regular.ttf") format("truetype");
+}
+/* Generic stuff */
+
+.remark-code, .remark-inline-code { font-family: 'Ubuntu Mono'; }
+
+body { font-family: Myriad Pro, Myriad, Helvetica Neue, Helvetica, Arial, sans-serif; }
+
+.img-75 {
+  text-align: center;
+  width: 500px !important;
+  height: 320px !important;
+}
+
+.img-50 {
+  text-align: center;
+  width: 400px !important;
+  height: 220px !important;
+}
+
+
+.grViz {
+  margin-left:auto; margin-right:auto; display:block;
+}
+
+/* Pretty sure this is all me messing with the title slide */
+
+
+div.remark-slide-container h1 {
+	font-family: Myriad Pro, Myriad, Helvetica Neue, Helvetica, Arial, sans-serif;
+	color: #004b5a;
+	letter-spacing: -1px;
+  font-size: 42px;
+  line-height: 1.1em;
+  font-weight: bold;
+}
+
+.inverse h1 {
+    color: #CDDBD8 !important;
+    line-height: 0.5em;
+    font-weight: normal;
+}
+
+.title-slide h1 {
+  color: #004b5a !important;
+	margin-top: -130px;
+}
+
+div.remark-slide-container h2 {
+	font-family: Myriad Pro, Myriad, Helvetica Neue, Helvetica, Arial, sans-serif;
+	color: #57919E;
+	letter-spacing: -1px;
+	font-weight: normal;
+	font-size: 26px
+}
+
+div.remark-slide-container h3 {
+	font-family: Myriad Pro, Myriad, Helvetica Neue, Helvetica, Arial, sans-serif;
+	color: #004b5a;
+	letter-spacing: -1px;
+	font-size: 22px;
+	font-weight: normal;
+	padding-top: 10px
+}
+
+.title-slide {
+	background-color: #fff;
+  background-image: url('figs/imis.png');
+	background-position: left 300px bottom 100px;
+	background-size: 70%;
+	border-bottom: 0 solid #57919E;
+	box-shadow:  0 55px 0 #fff;
+}
+
+
+
+
+.title-slide .remark-slide-number {
+  display: none;
+}
+
+/* Hmm. How about the slide number. */
+
+
+.remark-slide-number {
+	font-family: Myriad Pro, Myriad, Helvetica Neue, Helvetica, Arial, sans-serif;
+	font-size: 14px;
+	color: #7F1518 !important;
+}
+
+/* Okay, now let's add a simple bottom border */
+
+
+div.remark-slide {
+  border-bottom: 3px solid  #57919E;
+  box-shadow:  0 5px 0 #F66733;
+
+}
+
+/* Let's play with .inverse and a new class, .fullscale, a little more */
+
+.inverse {
+    color: #fafafa;
+    text-shadow: 0 0 0 #333;
+}
+
+div.remark-slide-container .fullscale {
+    color: #d6d6d6;
+    text-shadow: 0 0 20px #333;
+}
+
+div.remark-slide-container .fullscale h1 {
+	color: #fff;
+
+}
+
+div.remark-slide-container .fullscale p {
+	color: #000;
+
+}
+.remark-slide-content {
+	font-size: 20px;
+	text-shadow: 0 0 0 #333;
+
+}
+
+.footnote {
+  font-size: 14px;
+
+}
+
+.footer {
+    color: black;
+    position: fixed;
+    top: 95%;
+    left: 0;
+    font-size: 11pt;
+    text-align: center;
+    width: 100%;
+}
+
+/* IMIS Link Color und Figure Caption sizes*/
+
+a {
+  color: #EC7404;
+  text-decoration: underline;
+}
+
+.figurecaption {
+  display: block;
+   font-size: 14px;
+   line-height: 1.15em;
+   text-align: center;
+}
+
+
+.red {
+  color: #E42032 ;
+}
+
+.orange {
+  color: #EC7404;
+}
+
+.yellow {
+  color: #FABB00;
+}
+
+.gray {
+  color: #9D9D9D;
+}
+
+.green {
+  color: #95BC0E;
+}

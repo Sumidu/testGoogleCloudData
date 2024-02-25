@@ -9,7 +9,7 @@ read_twitter_data <- function(filename, limit_rows = 100000){
   all_data <- fread(filename, stringsAsFactors = FALSE)
   
   all_data |> 
-    sample_n(limit_rows) |>
+    #sample_n(limit_rows) |>
     mutate(created_at = ymd_hms(created_at)) |> 
     write_rds(here::here("data", "all_data.rds"))
   

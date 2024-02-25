@@ -1,18 +1,26 @@
 ---
 title: "Twitter Data Analysis"
+subtitle: "infoXpand Workshop - Göttingen"
 author: "André Calero Valdez"
 date: "`r Sys.Date()`"
 output: 
   xaringan::moon_reader:
+    css: ["default", "default-fonts", "imis.css"]  
     lib_dir: libs
     self_contained: true
     nature:
+      ratio: '16:9'
       highlightStyle: github
       countIncrementalSlides: false
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, fig.retina = 2)
+set.seed(123)
+knitr::opts_chunk$set(
+  echo = FALSE, 
+  fig.retina = 2,
+  fig.width = 8,
+  fig.height = 6)
 
 library(data.table)
 library(tidyverse)
@@ -32,7 +40,7 @@ raw_csv_datafile <- here::here("data", "merged.csv")
 incidences <- load_incidences(inc_file_name)
 #all_data <- read_twitter_data(raw_csv_datafile)
 all_data <- read_rds(here::here("data", "all_data.rds"))
-
+all_data <- read_rds(here::here("data", "sample_data.rds"))
 
 # generate a stopwords list
 custom_stop_words <- c("rt", "https", "t.co", "mehr", "schon", "mal", "ja", "seit", "wurde", "wer", "warum",
@@ -42,6 +50,8 @@ custom_stop_words <- c("rt", "https", "t.co", "mehr", "schon", "mal", "ja", "sei
                        "fast", "gar", "dafür", "nein", "klar", "tun")
 
 stop_words <- tibble(word = c(stopwords::data_stopwords_nltk$de, custom_stop_words))
+
+len <- all_data |> nrow() |> format(big.mark=",")
 
 ```
 
@@ -54,18 +64,35 @@ stop_words <- tibble(word = c(stopwords::data_stopwords_nltk$de, custom_stop_wor
 
 ### Overview
 
-* 17 Mio tweets from Aug-2022 until Jul-2023
-  * Twitter changed API access (expensive) 
+* `r len ` tweets from Aug-2022 until Jul-2023
+  * Data error in first month (AND not OR on features)
+  * Data gap in March 2023 (API change)
+  * July 2023 Twitter changed API access (expensive) 
 
 
 ---
 
+
 ## Variables
+
 ```{r}
 names(all_data) |> as_tibble() |> knitr::kable()
 ```
 
---- 
+---
+
+<small>
+```{r}
+all_data |> 
+  sample_n(10) |> 
+  knitr::kable() |> 
+  kable_styling("striped", full_width = F) |> 
+  kable_styling(font_size = 9)
+```
+</small>
+
+
+---
 
 ## Descriptive data (language)
 
@@ -87,19 +114,13 @@ all_data |>
 ```
 
 
----
-
-
-```{r}
-all_data |> sample_n(2) |> knitr::kable() |> kable_styling("striped", full_width = F)
-```
-
 
 ---
+
 
 ## Sample of our twitter data over time
 
-```{r Tweets over time}
+```{r tweets-over-time}
 all_data %>%
   dplyr::select(created_at) %>% 
   ggplot() + 
