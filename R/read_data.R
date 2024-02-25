@@ -5,7 +5,7 @@ load_incidences <- function(filename){
 }
 
 
-read_twitter_data <- function(filename, limit_rows = 100000){
+read_twitter_data <- function(filename){
   all_data <- fread(filename, stringsAsFactors = FALSE)
   
   all_data |> 

@@ -15,11 +15,12 @@ output:
 ---
 
 ```{r setup, include=FALSE}
+start_time <- Sys.time()
 set.seed(123)
 knitr::opts_chunk$set(
   echo = FALSE, 
   fig.retina = 2,
-  fig.width = 8,
+  fig.width = 12,
   fig.height = 6)
 
 library(data.table)
@@ -35,12 +36,22 @@ source(here::here("R", "read_data.R"))
 
 inc_file_name <- here::here("data", "COVID-19-Faelle_7-Tage-Inzidenz_Deutschland.csv")
 raw_csv_datafile <- here::here("data", "merged.csv")
-#db_file_name <- here::here("data", "my-db.sqlite")
 
 incidences <- load_incidences(inc_file_name)
+
+
+
 #all_data <- read_twitter_data(raw_csv_datafile)
-all_data <- read_rds(here::here("data", "all_data.rds"))
-all_data <- read_rds(here::here("data", "sample_data.rds"))
+all_data <- read_rds(here::here("data", "all_data.rds")) 
+# read all data
+
+#all_data <- read_rds(here::here("data", "sample_data.rds"))
+
+# set to 1 for full sample
+sampling_frac <- 1
+dictionary_size <- 100
+rolling_avg_alignment <- "right"
+
 
 # generate a stopwords list
 custom_stop_words <- c("rt", "https", "t.co", "mehr", "schon", "mal", "ja", "seit", "wurde", "wer", "warum",
@@ -56,13 +67,17 @@ len <- all_data |> nrow() |> format(big.mark=",")
 ```
 
 
-## Analysis of Twitter data
+# Analysis of Twitter data
 
 * Collection of Twitter Streaming API data
   * All tweets from Germany, related to covid
-* Collected using google cloud platform and research API access
+  * Includes responses to tweets about covid
+  
+* Collection method 
+  * Google Cloud Platform and research API access
+  * Data not shareable due to Twitter API restrictions
 
-### Overview
+## Overview
 
 * `r len ` tweets from Aug-2022 until Jul-2023
   * Data error in first month (AND not OR on features)
@@ -73,16 +88,17 @@ len <- all_data |> nrow() |> format(big.mark=",")
 ---
 
 
-## Variables
+# Variables
 
-```{r}
+```{r export-variables}
 names(all_data) |> as_tibble() |> knitr::kable()
 ```
 
 ---
+# Example Tweets
 
 <small>
-```{r}
+```{r example-tweets}
 all_data |> 
   sample_n(10) |> 
   knitr::kable() |> 
@@ -94,11 +110,11 @@ all_data |>
 
 ---
 
-## Descriptive data (language)
+# Descriptive data (language)
 
-Mostly, german tweets
+Mostly, german tweets. Somehow lots of spanish tweets.
 
-```{r}
+```{r language-distribution}
 all_data |> 
   dplyr::select(lang) |> 
   ggplot() +
@@ -109,7 +125,8 @@ all_data |>
       ) +
   geom_bar() +
   coord_flip() +
-  labs(title = "Language distribution", x = "language code", y = "frequency")
+  labs(title = "Language distribution", x = "language code", y = "frequency") +
+  scale_y_continuous(labels = scales::comma)
 
 ```
 
@@ -118,9 +135,12 @@ all_data |>
 ---
 
 
-## Sample of our twitter data over time
+# Sample of our twitter data over time
 
 ```{r tweets-over-time}
+
+
+
 all_data %>%
   dplyr::select(created_at) %>% 
   ggplot() + 
@@ -132,24 +152,46 @@ all_data %>%
 
 ---
 
-## Covid-19 Incidence data (RKI)
+# Covid-19 Incidence data (RKI)
 
 ```{r plot_incidences}
 incidences %>% 
   ggplot() +
   aes(x = Meldedatum, y = `Faelle_7-Tage`, group = 1) + 
   geom_line() +
-  scale_y_continuous(labels = scales::comma) +
-  scale_x_date(date_labels = "%b %y") +
+  scale_y_continuous(labels = scales::comma, limits = c(0,1750000)) +
+  scale_x_date(date_labels = "%b %y", limits = c(dmy("01-01-2020"), dmy("01-02-2024"))) +
+  labs(y = "7-Tage-Inzidenz", x = "Meldedatum") 
+```
+
+---
+
+# Relevant time frame 
+
+
+```{r plot_incidences_relevant, echo=FALSE}
+releveant_incidences <- incidences %>% 
+  filter(Meldedatum > ymd("2022-08-05")) %>% 
+  filter(Meldedatum < ymd("2023-07-01")) %>%
+  # altersgruppen zusammenführen
+  filter(Altersgruppe == "00+") %>% 
+  noop() 
+  
+releveant_incidences %>% 
+  ggplot() +
+  aes(x = Meldedatum, y = `Faelle_7-Tage`, group = 1) + 
+  geom_line() +
+  scale_y_continuous(labels = scales::comma, limits = c(0,1750000)) +
+  scale_x_date(date_labels = "%b %y", limits = c(dmy("01-01-2020"), dmy("01-02-2024"))) +
   labs(y = "7-Tage-Inzidenz", x = "Meldedatum")
 ```
 
 ---
 
-## Relevant Time frame 
-Same time as tweet availability
+# Relevant time frame 
 
-```{r plot_incidences_relevant, echo=FALSE}
+
+```{r plot_incidences_relevant_2, echo=FALSE}
 releveant_incidences <- incidences %>% 
   filter(Meldedatum > ymd("2022-08-05")) %>% 
   filter(Meldedatum < ymd("2023-07-01")) %>%
@@ -166,43 +208,13 @@ releveant_incidences %>%
   labs(y = "7-Tage-Inzidenz", x = "Meldedatum")
 ```
 
----
-
-## Example: corona token
-How are "corona" as a token and incidence connected?
-
-```{r avg_tweets_de}
-filter_word <- "corona"
-
-all_data %>% 
-  dplyr::filter(lang == "de") %>% 
-  mutate(text = str_to_lower(text)) %>% 
-  filter(str_detect(text, fixed(filter_word))) %>%
-  select(created_at) %>% 
-  mutate(created_at_day = as_date(floor_date(created_at, "day"))) %>%
-  group_by(created_at_day) %>%
-  summarize(tweet_count = n()) %>% 
-  mutate(tweet_count = rollmean(tweet_count, 7, fill = NA, align = "right")) %>%
-  noop() -> avg_tweets_de_filtered
-```
-
-
-```{r plot_avg_tweets_de}
-# plot tweet weekly averages ----
-avg_tweets_de_filtered %>% 
-  ggplot() + 
-    aes(x = created_at_day, y = tweet_count) + 
-    geom_line() +
-  labs(title = filter_word)
-
-```
-
 
 ---
 
-## Token Data
+# Token Data
 
 ```{r filter-to-lower-data}
+
 lower_de_data <- all_data %>% 
   filter(lang == "de") %>% 
   mutate(text = str_to_lower(text)) %>% 
@@ -213,17 +225,16 @@ lower_de_data <- all_data %>%
 ```{r tokenize-data}
 lower_de_data %>% 
   #sample_n(100000) %>% 
-  select(created_at_day, text) %>% 
+  sample_frac(sampling_frac) %>%
+  dplyr::select(created_at_day, text) %>% 
   unnest_tokens(word, text) %>% 
   group_by(created_at_day, word) %>%
-  summarize(word_count = n()) %>% 
+  summarize(word_count = n(), .groups = "keep") %>% 
   ungroup() %>% 
   arrange(desc(word_count)) %>% 
   anti_join(stop_words, by = c("word" = "word")) %>%
   noop() -> tokenized_data
 ```
-
----
 
 
 ```{r top_words}
@@ -234,29 +245,104 @@ tokenized_data %>%
   arrange(desc(tweet_count)) -> top_words
 
 top_words %>%
-  head(100) %>%
+  head(dictionary_size) %>%
   ggplot() +
   aes(x = reorder(word, tweet_count), y = tweet_count) +
   geom_col() +
-  coord_flip()
+  coord_flip() +
+  labs(title = "Most frequent tokens", x = "Token", y = "Count")
+
 ```
+
 
 ---
 
-## Example comparison
+# Example: corona token
+
+
+```{r tweets-corona}
+filter_word <- "corona"
+
+all_data %>% 
+  dplyr::filter(lang == "de") %>% 
+  mutate(text = str_to_lower(text)) %>% 
+  filter(str_detect(text, fixed(filter_word))) %>%
+  dplyr::select(created_at) %>% 
+  mutate(created_at_day = as_date(floor_date(created_at, "day"))) %>%
+  filter(created_at_day > ymd("2022-08-05")) %>%
+  group_by(created_at_day) %>%
+  summarize(tweet_count = n()) %>% 
+  #mutate(tweet_count = rollmean(tweet_count, 7, fill = NA, align = "right")) %>%
+  remove_missing(na.rm = TRUE) |> 
+  ggplot() + 
+    aes(x = created_at_day, y = tweet_count) + 
+    geom_col() +
+    scale_x_date(date_labels = "%b %y") +
+    labs(title = paste("Rolling mean for", filter_word),
+         x = "Date", y = "Number of Tweets")
+
+```
+
+Are "corona" as a token and incidence connected?
+
+---
+
+# Example: corona token (avg)
+
+
+```{r avg_tweets_de}
+filter_word <- "corona"
+
+all_data %>% 
+  dplyr::filter(lang == "de") %>% 
+  mutate(text = str_to_lower(text)) %>% 
+  filter(str_detect(text, fixed(filter_word))) %>%
+  dplyr::select(created_at) %>% 
+  mutate(created_at_day = as_date(floor_date(created_at, "day"))) %>%
+  filter(created_at_day > ymd("2022-08-05")) %>%
+  group_by(created_at_day) %>%
+  summarize(tweet_count = n()) %>% 
+  mutate(tweet_count_avg = rollmean(tweet_count, 7, fill = NA, align = rolling_avg_alignment)) %>%
+  noop() -> avg_tweets_de_filtered
+```
+
+
+```{r plot_avg_tweets_de}
+# plot tweet weekly averages ----
+avg_tweets_de_filtered %>% 
+  remove_missing(na.rm = TRUE) |> 
+  ggplot() + 
+    aes(x = created_at_day, y = tweet_count) + 
+    geom_col(alpha = 0.3) +
+    scale_x_date(date_labels = "%b %y") +
+    geom_line(aes(x = created_at_day, y = tweet_count_avg), alpha = 1) +
+    labs(title = paste("Rolling mean for", filter_word),
+         x = "Date", y = "Number of Tweets")
+
+```
+
+Weekly rolling average
+
+
+
+---
+
+# Example comparison: corona
 
 ```{r generate-rolling-average-example}
-idx <- 4
+
+selected_word <- "corona"
+
 roll_avg <- tokenized_data %>% 
-  filter(word == top_words$word[idx]) %>% 
-  mutate(word_count = rollmean(word_count, 7, fill = NA, align = "right")) %>% 
+  filter(word == selected_word) %>% 
+  mutate(word_count = rollmean(word_count, 7, fill = NA, align = rolling_avg_alignment)) %>% 
   noop()
 
 tmax <- roll_avg %>% pull(word_count) %>% max(na.rm = TRUE)
 
 imax <- releveant_incidences %>% 
   filter(Altersgruppe == "00+") %>% 
-  select(datum = Meldedatum, cases = `Faelle_7-Tage`) %>% 
+  dplyr::select(datum = Meldedatum, cases = `Faelle_7-Tage`) %>% 
   pull(cases) %>% max(na.rm = TRUE)
 
 max_ratio <- imax/tmax
@@ -265,35 +351,39 @@ max_ratio <- imax/tmax
 
 ```{r plot-rolling-average-example}
 releveant_incidences %>% 
-  select(datum = Meldedatum, cases = `Faelle_7-Tage`) %>%
+  dplyr::select(datum = Meldedatum, cases = `Faelle_7-Tage`) %>%
   left_join(roll_avg, by = c(datum = "created_at_day")) %>% 
-  select(-word) %>% 
+  dplyr::select(-word) %>% 
+  remove_missing(na.rm = TRUE) %>%
   ggplot() +
   aes(x = datum) +
-  geom_line(aes(y = cases, color = "red", name = "cases")) +
-  geom_line(aes(y = word_count*max_ratio, color = "blue")) +
+  geom_line(aes(y = cases)) +
+  geom_col(aes(y = word_count*max_ratio), alpha = 0.4) +
+  scale_x_date(date_labels = "%b %y") +
   scale_y_continuous(
   
     # Features of the first axis
     name = "cases",
     
     # Add a second axis and specify its features
-    sec.axis = sec_axis(~./max_ratio, name="term frequency")
+    sec.axis = sec_axis(~./max_ratio, name="term frequency"),
+    labels = scales::comma
   ) +
-  labs(title = paste("Rolling 7-day average for term:",top_words$word[idx]),
-       x = "date", y = "term frequency") 
+  labs(title = paste("Rolling 7-day average for term:",selected_word),
+       x = "date", y = "token frequency") 
 ```
 
 
 ---
+# Creating a rolling average 
 
-
+`r dictionary_size` most frequent tokens
 
 ```{r generate-merged-rolling-averages}
 
 result_data <- releveant_incidences 
 
-for(i in 1:100){
+for(i in 1:dictionary_size){
   
   idx <- i
   col_name <- top_words$word[idx]
@@ -301,8 +391,8 @@ for(i in 1:100){
   roll_avg <- tokenized_data %>% 
     dplyr::filter(word == top_words$word[idx]) %>% 
     dplyr::arrange(created_at_day) %>%
-    complete(created_at_day = seq(min(created_at_day),max(created_at_day),1), fill = list(word = top_words$word[idx], word_count = 0)) |> 
-    dplyr::mutate({{col_name}} := rollmean(word_count, 7, fill = c(0,0,0), align = "right")) %>%
+    complete(created_at_day = seq(min(created_at_day), max(created_at_day),1), fill = list(word = top_words$word[idx], word_count = 0)) |> 
+    dplyr::mutate({{col_name}} := rollmean(word_count, 7, fill = c(0,0,0), align = rolling_avg_alignment)) %>%
     dplyr::select(created_at_day, {{col_name}}) %>%
     noop()
   roll_avg
@@ -310,25 +400,38 @@ for(i in 1:100){
 result_data <- result_data %>% 
   left_join(roll_avg, by = c(Meldedatum = "created_at_day")) 
 }
-result_data
+
+result_data |> 
+  dplyr::select(-Altersgruppe, -Bevoelkerung, -Faelle_gesamt, -Faelle_neu, -`Inzidenz_7-Tage`) |> 
+  kable() |>  
+  kable_styling("striped", full_width = F) |> 
+  kable_styling(font_size = 9)
 ```
-
-
-## Generate Time Series Data
-
-```{r remove_superfluous_data}
-ts_data <- result_data %>% 
-  dplyr::select(-Altersgruppe, -Bevoelkerung, -Faelle_gesamt, -Faelle_neu, -Meldedatum, -`Inzidenz_7-Tage`) |> 
-  #dplyr::select(1:10) |> 
-  ts()
-
-
-```
-
 
 ---
 
-```{r load_timeseries_libs}
+# Generate Time Series Data
+
+```{r remove_superfluous_data}
+# for calculation
+ts_data <- result_data %>% 
+  dplyr::select(-Altersgruppe, -Bevoelkerung, -Faelle_gesamt, -Faelle_neu, -Meldedatum, -`Inzidenz_7-Tage`) |> 
+  ts()
+
+# for plotting
+result_data %>% 
+  dplyr::select(-Altersgruppe, -Bevoelkerung, -Faelle_gesamt, -Faelle_neu, -Meldedatum, -`Inzidenz_7-Tage`) |> 
+  dplyr::select(1:10) |> 
+  ts() -> time_series_data
+
+time_series_data |> plot()
+
+```
+
+
+
+
+```{r load_timeseries_libs, include=FALSE}
 library(forecast)
 library(vars)
 library(coefplot)
@@ -337,52 +440,120 @@ library(coefplot)
 
 ---
 
-## Stationary series?
-If not stationary make stationary
-```{r make-stationary}
-ndiffs(ts_data)
+# Stationary series?
 
+
+
+```{r make-stationary}
+
+# for calculation
 diff_ts <- diff(ts_data, differences = 1) |> na.omit()
-diff_ts |> plot(plot.type = "single")
+
+
+# for plotting
+diff(time_series_data, differences = 1) |> 
+  na.omit() -> time_series_data_diff
+
+time_series_data_diff |> plot()
 
 
 ```
 
+If not stationary, we must make it stationary. Degree of differencing: `r ndiffs(ts_data)`
+
+
 ---
 
-## Multivariate Autoregressive Model
+# Vector Autoregressive Model (VAR)
 
 
-$$
-Y_t = c + A_1Y_{t-1} + A_2Y_{t-2} + \cdots + A_pY_{t-p} + u_t
-$$
+$$Y_t = c + A_1Y_{t-1} + A_2Y_{t-2} + \cdots + A_pY_{t-p} + u_t$$
+
 
 Where:
 
 - $Y_t$ is a $k \times 1$ vector of endogenous variables at time $t$,
 - $c$ is a $k \times 1$ vector of constants (intercept),
 - $A_1, A_2, \ldots, A_p$ are $k \times k$ matrices of coefficients to be estimated,
-- $u_t$ is a $k \times 1$ vector of error terms that are assumed to be gaussian noise,
+- $u_t$ is a $k \times 1$ vector of error terms that are assumed to be white noise,
 - $p$ is the number of lagged observations included in the model (the order of the VAR),
 - $t$ represents the time period.
 
 
+
 ---
+# Simple example
+Consider a VAR(1) model with two variables, $Y_t$ and $X_t$, which can be represented as follows:
+
+$$
+\begin{pmatrix}
+Y_t \\
+X_t 
+\end{pmatrix}
+=
+\begin{pmatrix}
+c_Y \\
+c_X 
+\end{pmatrix}
++
+\begin{pmatrix}
+a_{11} & a_{12} \\
+a_{21} & a_{22}
+\end{pmatrix}
+\begin{pmatrix}
+Y_{t-1} \\
+X_{t-1}
+\end{pmatrix}
++
+\begin{pmatrix}
+u_{Yt} \\
+u_{Xt}
+\end{pmatrix}
+$$
+
+Where:
+
+- $Y_t$ and $X_t$ are the variables of interest at time $t$,
+- $c_Y$ and $c_X$ are the intercepts for each equation,
+- $a_{11}$, $a_{12}$, $a_{21}$, and $a_{22}$ are the coefficients representing the influence of each variable's lagged value on each variable,
+- $u_{Yt}$ and $u_{Xt}$ are the error terms for each equation at time $t$
+
+This VAR(1) model shows how each variable at time $t$ is a linear function of both variables' values at time $t-1$ plus an error component.
+
+
+---
+# VAR Model Estimation
+
 
 ```{r multivar, fig.width=10, fig.height=20}
+ts_var <- VAR(diff_ts, lag.max = 10)
+summary(ts_var$varresult$Faelle_7.Tage)
 
-ts_var <- VAR(diff_ts, lag.max = 7) 
-
-ts_var$varresult$Faelle_7.Tage |> coef() |> head()
 ```
-
 
 ---
 
-## Coefficient plot
-```{r multivar_coef, fig.width=10, fig.height=20}
-ts_var$p
+# Submodel for case prediction
 
+```{r multivar2, fig.width=10, fig.height=20}
+sums <- ts_var$varresult$Faelle_7.Tage |> summary()
+
+sums$coefficients |> as.data.frame() |> rownames_to_column() |> as_tibble() |> 
+  dplyr::arrange(desc(`t value`)) |>
+  head(20) |> 
+  knitr::kable() |> 
+  kable_styling("striped", full_width = F) |>
+  kable_styling(font_size = 13)
+```
+
+Evaluating model quality (Akaike Information Criterion)
+```{r multivar_eval, fig.width=10, fig.height=20}
+ts_var$p
+```
+
+---
+
+```{r multivar_coef, fig.width=10, fig.height=20}
 coefplot(ts_var$varresult$Faelle_7.Tage, sort = "magnitude")
 
 ```
@@ -390,7 +561,7 @@ coefplot(ts_var$varresult$Faelle_7.Tage, sort = "magnitude")
 
 ---
 
-## Identify significant coefficients
+# Identify significant coefficients
 
 ```{r multivar_significant}
 
@@ -407,4 +578,28 @@ svt |> filter(p_value < 0.05) |> knitr::kable()
 
 ```
 
+
+
+---
+# Alternativ approaches?
+
+- Impulse Response Function (IRF)?
+- Granger Causality ? `lmtest` package
+- Baysian VAR? `BVAR` package
+- Structural VAR? `vars` package
+- Vector Error Correction Model (VECM)?
+- Dynamic Factor Model? `dfms` package
+- State Space Model?
+- Neural Network?
+- ...
+
+
+---
+# Meta-data
+```{r meta}
+
+end_time <- Sys.time()
+
+end_time - start_time
+```
 
