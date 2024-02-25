@@ -8,22 +8,23 @@ library(stopwords)
 library(collapse)
 
 
-incidences <- read_csv("COVID-19-Faelle_7-Tage-Inzidenz_Deutschland.csv")
+source("R/read_data.R")
+source("R/utils.R")
+
+inc_file_name <- here::here("data", "COVID-19-Faelle_7-Tage-Inzidenz_Deutschland.csv")
+raw_csv_datafile <- here::here("data/merged.csv")
+db_file_name <- here::here("data", "my-db.sqlite")
 
 
-all_data <- fread("data/merged.csv", stringsAsFactors = FALSE)
+incidences <- load_incidences(inc_file_name)
+all_data <- read_twitter_data(raw_csv_datafile, 100000)
 
-### SQLite Version START
-con <- dbConnect(RSQLite::SQLite(), "my-db.sqlite")
-copy_to(con, all_data, "tweets", temporary = FALSE, indexes = list(
-  c("id_str", "created_at"),
-  "id_str",
-  "created_at"
-))
+#create_twitter_db(all_data,db_file_name)
+#tweets_db <- connect_twitter_db(db_file_name)
 
 
+#tweets_db |> filter(lang == "de") |> select(text) |> head(10)
 
-tweets_db <- tbl(con, "tweets")
 
 tweets_db %>% 
   select(created_at) %>% 
@@ -32,17 +33,17 @@ tweets_db %>%
   ggplot(aes(x = created_at)) + geom_histogram()
 #### SQLITE Version END
 
-noop <- function(x){x}
 
-filter_word <- "nase"
+filter_word <- "impfung"
 
 
+# average tweet counts over a week
 all_data %>% 
-  filter(lang == "de") %>% 
+  dplyr::filter(lang == "de") %>% 
   mutate(text = str_to_lower(text)) %>% 
-  filter(str_detect(text, filter_word)) %>%
+  filter(str_detect(text, fixed(filter_word))) %>%
   select(created_at) %>% 
-  #collect() %>% 
+  collect() %>% 
   mutate(created_at = ymd_hms(created_at)) %>% 
   mutate(created_at_day = as_date(floor_date(created_at, "day"))) %>%
   group_by(created_at_day) %>%
@@ -55,6 +56,7 @@ all_data %>%
   #mutate(keyowrd = filter_word) %>% 
   noop() -> res_data 
 
+# plot tweet weekly averages ----
 res_data %>% 
   ggplot() + 
     aes(x = created_at_day, y = tweet_count) + 
@@ -77,7 +79,9 @@ res_inc %>%
   ggplot() +
   aes(x = Meldedatum, y = `Faelle_7-Tage`, group = 1) + 
   geom_line() +
-  scale_y_continuous(labels = scales::comma)
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_date(date_labels = "%b %y") +
+  labs(y = "7-Tage-Inzidenz", x = "Meldedatum")
   
 ggsave("output/incidence.pdf")
 
@@ -159,7 +163,8 @@ for(i in 1:1000){
   idx <- i
   fname <- paste0("output/word_", idx, "_", top_words$word[idx], ".pdf")
 
-roll_avg <- tokenized_data %>% filter(word == top_words$word[idx]) %>% 
+roll_avg <- tokenized_data %>% 
+  filter(word == top_words$word[idx]) %>% 
   mutate(word_count = rollmean(word_count, 7, fill = NA, align = "right")) %>% 
   noop()
 
